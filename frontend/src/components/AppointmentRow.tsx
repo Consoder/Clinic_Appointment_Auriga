@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { api } from "../api";
 import type { Appointment } from "../types";
@@ -35,7 +36,13 @@ export function AppointmentRow({ appointment, showDoctor, onCancelled }: Props) 
   const end = new Date(appointment.endsAt);
 
   return (
-    <li className={`appointment-row appointment-row--${appointment.status.toLowerCase()}`}>
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`appointment-row appointment-row--${appointment.status.toLowerCase()}`}
+    >
       <div className="appointment-row__time">
         {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
         {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -51,6 +58,6 @@ export function AppointmentRow({ appointment, showDoctor, onCancelled }: Props) 
         </button>
       )}
       {error && <p className="error-text">{error}</p>}
-    </li>
+    </motion.li>
   );
 }
