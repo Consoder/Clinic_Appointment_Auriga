@@ -1,0 +1,43 @@
+import type { Appointment, ApiError, Doctor, Patient } from "./types";
+
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!res.ok) {
+    // Surface the backend's error message (e.g. "overlapping appointment")
+    // instead of a generic "request failed", so the front desk sees why.
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new Error(body?.error ?? `Request failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  listDoctors: () => request<Doctor[]>("/doctors"),
+
+  getDoctorDay: (doctorId: string, date: string) =>
+    request<Appointment[]>(`/doctors/${doctorId}/day?date=${date}`),
+
+  findByPatientName: (name: string) =>
+    request<Appointment[]>(`/patients/search?name=${encodeURIComponent(name)}`),
+
+  searchPatients: (name: string) =>
+    request<Patient[]>(`/patients?name=${encodeURIComponent(name)}`),
+
+  createPatient: (data: { name: string; phone?: string }) =>
+    request<Patient>("/patients", { method: "POST", body: JSON.stringify(data) }),
+
+  bookAppointment: (data: {
+    doctorId: string;
+    patientId: string;
+    startsAt: string;
+    endsAt: string;
+  }) => request<Appointment>("/appointments", { method: "POST", body: JSON.stringify(data) }),
+
+  cancelAppointment: (id: string) =>
+    request<Appointment>(`/appointments/${id}/cancel`, { method: "POST" }),
+};

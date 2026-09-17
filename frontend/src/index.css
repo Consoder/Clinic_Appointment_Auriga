@@ -1,0 +1,241 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f5f6fa;
+  color: #1f2430;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.app__header h1 {
+  font-size: 1.4rem;
+  margin: 0 0 1rem;
+}
+
+.app__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.app__tabs button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d7dae0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.app__tabs button.active {
+  background: #2451e0;
+  color: white;
+  border-color: #2451e0;
+}
+
+.panel {
+  background: white;
+  border: 1px solid #e3e5ea;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #4a4f5b;
+}
+
+.panel input,
+.panel select {
+  padding: 0.5rem;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.time-row,
+.filters {
+  display: flex;
+  gap: 1rem;
+}
+
+.time-row label,
+.filters label {
+  flex: 1;
+}
+
+.panel button[type="submit"],
+.search-row button {
+  align-self: flex-start;
+  padding: 0.55rem 1.1rem;
+  background: #2451e0;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.panel button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.search-row input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+}
+
+.error-text {
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.success-text {
+  color: #1e8e3e;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.appointment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.appointment-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #e3e5ea;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.appointment-row--cancelled_free,
+.appointment-row--cancelled_late {
+  opacity: 0.6;
+}
+
+.appointment-row__time {
+  font-variant-numeric: tabular-nums;
+  color: #4a4f5b;
+  min-width: 110px;
+}
+
+.appointment-row__details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.appointment-row__status {
+  font-size: 0.75rem;
+  color: #6b7080;
+}
+
+.appointment-row button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.patient-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.patient-picker--selected {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+}
+
+.patient-picker__results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e3e5ea;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.patient-picker__results button {
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.patient-picker__results button:hover {
+  background: #f0f2f8;
+}
+
+.patient-picker__new {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7080;
+}
+
+.patient-picker__new input {
+  padding: 0.4rem;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.patient-picker__new button {
+  padding: 0.4rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  background: #2451e0;
+  color: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
