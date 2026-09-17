@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import {
   AlreadyCancelledError,
+  AppointmentNotBookedError,
   BookingConflictError,
   InvalidRangeError,
   NotFoundError,
@@ -26,7 +27,11 @@ export function errorHandler(
   if (err instanceof NotFoundError) {
     return res.status(404).json({ error: err.message });
   }
-  if (err instanceof BookingConflictError || err instanceof AlreadyCancelledError) {
+  if (
+    err instanceof BookingConflictError ||
+    err instanceof AlreadyCancelledError ||
+    err instanceof AppointmentNotBookedError
+  ) {
     return res.status(409).json({ error: err.message });
   }
 

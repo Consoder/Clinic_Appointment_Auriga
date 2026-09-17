@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { isValidRange, findOverlapping } from "./overlap.js";
+import { isValidRange, findOverlapping, isOverlapConstraintViolation } from "./overlap.js";
 import { BookingConflictError, InvalidRangeError, NotFoundError } from "./errors.js";
 
 export interface BookAppointmentInput {
@@ -8,9 +8,6 @@ export interface BookAppointmentInput {
   startsAt: Date;
   endsAt: Date;
 }
-
-/** Name of the DB-level EXCLUDE constraint (see prisma/migrations). */
-const OVERLAP_CONSTRAINT_NAME = "appointments_no_overlap";
 
 /**
  * Books an appointment for a doctor.
@@ -75,15 +72,4 @@ export async function bookAppointment(
     }
     throw err;
   }
-}
-
-function isOverlapConstraintViolation(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const message = "message" in err ? String((err as { message: unknown }).message) : "";
-  const meta = (err as { meta?: { message?: string; code?: string } }).meta;
-  return (
-    message.includes(OVERLAP_CONSTRAINT_NAME) ||
-    message.includes("23P01") ||
-    meta?.message?.includes(OVERLAP_CONSTRAINT_NAME) === true
-  );
 }

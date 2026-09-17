@@ -26,5 +26,12 @@ export class AlreadyCancelledError extends Error {
   }
 }
 
+export class AppointmentNotBookedError extends Error {
+  constructor(message = "Only a currently booked appointment can be rescheduled.") {
+    super(message);
+    this.name = "AppointmentNotBookedError";
+  }
+}
+
 /** Postgres error code for a unique/exclusion constraint violation. */
 export const PG_EXCLUSION_VIOLATION = "23P01";

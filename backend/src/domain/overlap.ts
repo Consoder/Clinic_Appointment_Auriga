@@ -30,3 +30,23 @@ export function findOverlapping<T extends TimeRange>(
 ): T | undefined {
   return existing.find((appt) => intervalsOverlap(candidate, appt));
 }
+
+/** Name of the DB-level EXCLUDE constraint (see prisma/migrations). */
+export const OVERLAP_CONSTRAINT_NAME = "appointments_no_overlap";
+
+/**
+ * Recognizes a Postgres EXCLUDE-constraint violation bubbling up through
+ * Prisma so both bookAppointment and rescheduleAppointment can translate it
+ * into the same BookingConflictError, whether the conflict was caught by
+ * the app-level check or only by the DB under a race.
+ */
+export function isOverlapConstraintViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const message = "message" in err ? String((err as { message: unknown }).message) : "";
+  const meta = (err as { meta?: { message?: string; code?: string } }).meta;
+  return (
+    message.includes(OVERLAP_CONSTRAINT_NAME) ||
+    message.includes("23P01") ||
+    meta?.message?.includes(OVERLAP_CONSTRAINT_NAME) === true
+  );
+}
