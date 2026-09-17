@@ -29,6 +29,8 @@ enum AppointmentStatus {
   BOOKED
   CANCELLED_FREE
   CANCELLED_LATE
+  COMPLETED
+  NO_SHOW
 }
 
 model Appointment {
