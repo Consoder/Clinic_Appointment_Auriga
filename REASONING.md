@@ -151,6 +151,133 @@ transactions.
 - `PatientPicker` debounces search (300ms) rather than firing a request per
   keystroke — a small, standard efficiency call, not architecture.
 
+## The twists (T6, T2, T1)
+
+Added after the core four business rules, in this order: T6 (reschedule, no
+new infrastructure needed), then a shared virtual clock, then T2 (no-show
+sweep), then T1 (reminders) — T1 and T2 both needed the clock first.
+
+### T6 — Reschedule (`rescheduleService.ts`)
+
+Deliberately mirrors `bookingService.ts` rather than introducing a different
+pattern: same two-layer guard (app-level check inside a transaction, backed
+by the same `appointments_no_overlap` `EXCLUDE` constraint). An `UPDATE`
+naturally only checks the new row against every *other* row for that
+constraint, so no self-exclusion trick was needed on the DB side — the
+existing constraint just works for reschedule with zero changes to the
+migration. The shared `isOverlapConstraintViolation()` check was extracted
+from `bookingService.ts` into `overlap.ts` specifically so this didn't have
+to duplicate it. Only a `BOOKED` appointment can be rescheduled — moving a
+cancelled/completed/no-show appointment doesn't mean anything.
+
+### Why a virtual clock
+
+T1 ("each morning") and T2 ("30 min after start") are both specified as
+graded via `POST /clock`, not real elapsed time — a grader can't wait until
+tomorrow morning to check a reminder fired. `backend/src/domain/clock.ts` is
+a single in-memory value: `now()` returns real system time until `/clock` is
+ever called, then returns exactly what it was last set/advanced to. This
+also meant retrofitting BR2's cancellation fee to read from the same clock
+(`cancellationService.ts`'s `now` default changed from `new Date()` to
+`clock.now()`) — otherwise the app would have two different, disagreeing
+notions of "now" once the clock was ever touched.
+
+**Real-time-until-touched, not always-real-time:** once set, the clock does
+*not* keep advancing with real time — it freezes at exactly the value given,
+until the next `/clock` call. This is deliberate: deterministic grading
+needs "it is now exactly 9:31am" to stay true for the whole request, not
+drift while the request is in flight.
+
+**In-memory, not persisted — a real trade-off, not an oversight.** The clock
+(and the outbox, and the reminder-dedupe state) reset on every server
+restart. For a real deployment this would be wrong; for this system, the
+alternative (a DB-backed clock/settings table) is real added scope for what
+is fundamentally a grading/testing hook, not a feature the front desk itself
+needs. Called out explicitly rather than silently accepted: mid-build, this
+surfaced as real confusion (`tsx watch` restarting on every file edit
+silently reset an already-set virtual clock), which is a genuine cost of the
+in-memory choice, not a bug in the clock's logic.
+
+### T2 — No-show sweep (`noShowService.ts`, `completionService.ts`)
+
+Required inventing a state the twist implies but doesn't fully spec:
+"if not completed" presupposes a `COMPLETED` status already exists, so
+`COMPLETED` and `NO_SHOW` were added to the enum alongside a minimal
+`POST /appointments/:id/complete`. Without that endpoint, every `BOOKED`
+appointment would eventually become `NO_SHOW` with no way to say otherwise,
+which can't be the intent.
+
+The sweep itself (`sweepNoShows`) is one `updateMany` — `WHERE status =
+'BOOKED' AND starts_at <= now - 30min`, no per-row loop. It's naturally
+idempotent: once a row flips to `NO_SHOW` it stops matching, so re-running
+the sweep on an unchanged clock is a harmless no-op. It runs synchronously
+inside `POST /clock`, not on a real background timer — there's no
+"meanwhile, in real time" for a virtual clock to hand off to.
+
+### T1 — Morning reminders (`notificationService.ts`, `reminderService.ts`)
+
+`notificationService.ts` is a deliberately thin stand-in for a real
+Notification Service: `sendNotification()` pushes to an in-memory array
+instead of calling an SMS/email provider, and `GET /outbox` exposes that
+array directly — the grading hook the twist names, with no mock server
+needed.
+
+**"Each morning" reinterpreted as "once per calendar day (UTC)":** the twist
+doesn't pin an exact hour, and grading is clock-driven rather than
+wall-clock-driven, so the sweep fires once, the first time a `POST /clock`
+call's resulting time lands on a new UTC calendar day versus the last day it
+ran for (`lastReminderDateKey`, module-level in-memory state) — not on any
+specific hour. This is an interpretive call worth flagging explicitly: a
+stricter reading ("only at ~8am") would need an hour threshold the twist
+doesn't specify, and I judged the day-crossing interpretation more robust
+against a grader picking an arbitrary morning timestamp.
+
+**Manual reminders were added beyond the twist's own spec.** The automatic
+sweep alone produces an outbox a human never explicitly asked to populate,
+which surfaced as real confusion during development ("why am I seeing a
+notification addressed to a patient?"). `GET /reminders/today` (today's
+`BOOKED` appointments, flagged with whether a reminder already went out) and
+`POST /reminders/:id/send` (manual, independent of the sweep) exist so the
+front desk has an explicit, reviewable "who needs reminding" list with a
+button, rather than only a silently-populated log — the automatic sweep
+(the graded requirement) is unchanged and still fires on `/clock`.
+
+**Two bugs worth naming, both from the same root cause** (composing a
+patient-facing message on the server without pinning a timezone/frame of
+reference):
+1. The reminder's time-of-day was first rendered with
+   `toLocaleTimeString()` with no `timeZone` option, which silently used
+   the *server machine's* OS timezone rather than UTC — a 15:00 UTC
+   appointment showed as "8:30 PM" on a server running in IST. Fixed by
+   pinning `timeZone: "UTC"` explicitly, consistent with how the rest of
+   the system treats appointment times.
+2. The message text ("you have an appointment...") is correct **for the
+   patient it's addressed to**, but rendering it verbatim in the front
+   desk's own UI made it look self-addressed. Fixed by labeling the
+   recipient explicitly ("To Samantha Lee") wherever the raw message is
+   shown, rather than changing the message itself — the message needs to
+   stay patient-voiced since that's what would actually be sent to them.
+
+### Frontend for the twists
+
+`AppointmentRow` gained Reschedule/Complete actions alongside Cancel — all
+three only render for `BOOKED` appointments, matching each service's own
+guard. Rescheduling can move an appointment off the currently-viewed day
+entirely; `DoctorDayView` drops it from the list rather than show it under
+the wrong date once that happens.
+
+The new Clock tab (`ClockPanel.tsx`) deliberately does **not** show a live
+"current server time" readout. That number is exactly the in-memory state
+that resets on server restart (see above) — displaying it live meant it
+could look wrong at the worst possible moment, which is precisely what
+happened during development. Each action instead shows the *result* of what
+just happened (sweep counts), which is always accurate for that instant
+without claiming to track ongoing time. `DoctorDayView`'s date picker
+similarly stopped defaulting to the browser's real today and now asks
+`GET /clock` what day the server currently thinks it is — before this fix,
+advancing the virtual clock while the day view still assumed real-world
+"today" was its own source of the same class of confusion.
+
 ## What's deliberately out of scope
 
 - **Tests** — postponed by explicit decision mid-project, not an oversight.
@@ -163,10 +290,14 @@ transactions.
 - **Auth / multi-tenant clinics** — the problem statement is "a busy clinic
   with a few doctors," not a SaaS platform. No login, no per-clinic data
   isolation. Adding it now would be solving a problem that wasn't asked.
-- **No-show handling** — distinct from cancellation; not in the storyline.
 - **Doctor/patient CRUD beyond what booking needs** — no edit/delete
   endpoints for doctors or patients, since the workflows described don't
   call for them.
+- **A real Notification Service integration** — `notificationService.ts` is
+  an in-memory stand-in by design (see the T1 section above); wiring an
+  actual SMS/email provider is a swap-the-implementation task, not a
+  redesign, since routes/services already call `sendNotification()` as if
+  it were the real thing.
 
 ## Known limitations / what I'd improve with more time
 
@@ -189,10 +320,33 @@ transactions.
 - **No pagination** on `/patients/search`, `/patients`, or the day view —
   fine at "a few doctors" scale; would need it before this saw the appointment
   volume of a larger clinic.
+- **Virtual clock, outbox, and reminder-dedupe state are all in-memory** —
+  none of it survives a server restart. Fine for a single long-running
+  deployment; a real production setup (multiple instances, deploys that
+  restart the process) would need this in Postgres instead. Explained in
+  full in the T1/T2 section above, since it's a design trade-off worth
+  understanding, not just a bug.
+- **"Once per calendar day" is an interpretation**, not a literal reading of
+  "each morning" — the twist doesn't specify an hour, and I judged
+  day-crossing more robust for clock-driven grading than guessing a
+  threshold hour. Worth confirming against the actual grading rubric if
+  that's available.
+- **Reschedule and the no-show/reminder sweeps have no automated tests
+  either** — same deferred-tests situation as BR1/BR2, now with three more
+  time-sensitive edge cases to eventually cover: rescheduling exactly onto
+  another appointment's boundary, the 30-minute no-show cutoff, and the
+  day-boundary reminder dedupe (advancing the clock twice within one day
+  vs. across a day boundary).
 
 ## Process note
 
 This was built in explicit phases (domain logic → API layer → migrations/
-seed → frontend), one module generated and reasoned about at a time rather
-than all at once, so each business rule could be checked off deliberately
-instead of discovered missing at the end.
+seed → frontend, then later T6 → virtual clock → T2 → T1 → frontend for the
+twists), one module generated, live-tested against the running API, and
+reasoned about at a time rather than all at once — so each business rule
+(and later, each twist) could be checked off deliberately instead of
+discovered missing at the end. Several of the fixes described above (the
+UTC timezone bug, the message-framing confusion, the clock-display removal,
+`DoctorDayView`'s date-sync bug) were only found *because* of this
+test-as-you-go approach, by actually exercising the running system rather
+than reasoning about the code in the abstract.

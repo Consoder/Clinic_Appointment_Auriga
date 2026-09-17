@@ -1,8 +1,10 @@
 # Clinic Appointment System
 
 A front-desk tool for a small clinic: book patients into time slots, guarantee
-a doctor is never double-booked, apply a fair cancellation fee rule, and let
-the desk find a doctor's day or a patient's appointment quickly.
+a doctor is never double-booked, apply a fair cancellation fee rule, let the
+desk find a doctor's day or a patient's appointment quickly, reschedule an
+appointment without reopening the double-booking problem, and automatically
+handle no-shows and morning reminders.
 
 See [`REASONING.md`](./REASONING.md) for design rationale, trade-offs, and
 what's deliberately left out.
@@ -15,6 +17,13 @@ what's deliberately left out.
 | BR2 | Cancelling **≥ 24 hours** before the appointment start is free. Cancelling later incurs a flat late fee. Cancelling exactly at the 24h boundary counts as free. (Numbers are placeholders in `backend/src/domain/fee.ts` — change `CANCELLATION_POLICY` if the real clinic policy differs.) |
 | BR3 | The desk can view a doctor's full day of appointments, sorted by time. |
 | BR4 | The desk can find an appointment by patient name (partial, case-insensitive). |
+| T6 | An appointment can be **rescheduled** to a new time, re-checking BR1 against every other appointment for that doctor. Same doctor, same patient — only the time changes. Only a currently `BOOKED` appointment can be rescheduled. |
+| T2 | Any appointment still `BOOKED` more than **30 minutes** past its start time is automatically marked `NO_SHOW`, unless the desk has marked it `COMPLETED` first. Runs as a sweep whenever the clock advances (see below). |
+| T1 | Each morning (once per calendar day, UTC), every `BOOKED` appointment scheduled that day gets a reminder sent to a Notification Service. The desk can also send one manually at any time from the "Today's appointments" box. |
+
+Since T1 and T2 are both time-driven, the backend runs on a **virtual clock**
+instead of only real wall-clock time — see [`POST /clock`](#post-clock) below
+and [Why a virtual clock](./REASONING.md#why-a-virtual-clock) in REASONING.md.
 
 ## Tech stack
 
@@ -35,17 +44,26 @@ backend/
     seed.ts                       # sample doctors + patients
   src/
     domain/                       # pure/service logic, no HTTP concerns
-      overlap.ts                  # BR1 interval math
+      overlap.ts                  # BR1 interval math + shared constraint-violation check
       bookingService.ts           # BR1 booking + conflict handling
+      rescheduleService.ts        # T6 reschedule + conflict handling
       fee.ts                      # BR2 fee rule (pure function)
       cancellationService.ts      # BR2 cancellation flow
+      completionService.ts        # T2 mark-completed (excludes from no-show sweep)
+      noShowService.ts            # T2 no-show sweep
+      clock.ts                    # virtual clock (POST /clock reads/writes this)
+      notificationService.ts      # in-memory outbox "Notification Service"
+      reminderService.ts          # T1 morning sweep + manual reminder send
       lookupService.ts            # BR3 + BR4 read queries
       errors.ts                   # typed domain errors
     db/prismaClient.ts             # Prisma client singleton
     routes/                        # Express routers (HTTP layer)
-      appointments.ts
+      appointments.ts             # book, cancel, reschedule, complete
       doctors.ts
       patients.ts
+      clock.ts                    # GET/POST /clock
+      outbox.ts                   # GET /outbox
+      reminders.ts                # GET /reminders/today, POST /reminders/:id/send
       errorHandler.ts             # maps domain/validation errors -> HTTP codes
     app.ts                         # Express app factory (testable, no listen())
     server.ts                      # entry point
@@ -59,8 +77,9 @@ frontend/
       DoctorDayView.tsx            # BR3
       PatientSearchView.tsx        # BR4
       PatientPicker.tsx            # find-or-create patient
-      AppointmentRow.tsx           # shared row + cancel action (BR2)
-    App.tsx                        # 3-tab layout: Book / Doctor's Day / Find Patient
+      AppointmentRow.tsx           # shared row: cancel/reschedule/complete actions
+      ClockPanel.tsx               # advance/jump clock, today's reminders, outbox log
+    App.tsx                        # 4-tab layout: Book / Doctor's Day / Find Patient / Clock
 ```
 
 ## Getting started
@@ -258,3 +277,131 @@ clock at the moment of cancellation, not a client-supplied timestamp.
 **404** — appointment not found
 
 **409** — appointment is already cancelled
+
+---
+
+### `POST /appointments/:id/reschedule`
+
+T6. Moves an appointment to a new time. Same doctor, same patient — the body
+has no `doctorId`/`patientId` fields, only the new range. Re-runs BR1's
+overlap check against every other `BOOKED` appointment for this doctor.
+
+**Body**
+```json
+{ "startsAt": "2026-09-21T14:00:00.000Z", "endsAt": "2026-09-21T14:30:00.000Z" }
+```
+
+**200** — the updated `Appointment`.
+
+**400** — invalid range or validation error
+
+**404** — appointment not found
+
+**409** — either the appointment isn't currently `BOOKED` (can't reschedule a
+cancelled/completed/no-show appointment), or the new time overlaps another
+booked appointment for this doctor.
+
+---
+
+### `POST /appointments/:id/complete`
+
+T2. Marks a visit as having happened. This is what excludes an appointment
+from the automatic no-show sweep.
+
+**200** — the updated `Appointment` (`status: "COMPLETED"`).
+
+**404** — appointment not found
+
+**409** — appointment isn't currently `BOOKED`
+
+---
+
+### `GET /clock`
+
+Returns the server's current effective time — real system time until
+`POST /clock` is ever called, the exact value it was last set/advanced to
+after that.
+
+**200**
+```json
+{ "now": "2026-09-17T10:00:00.000Z" }
+```
+
+---
+
+### `POST /clock`
+
+Drives the virtual clock so T1/T2's time-based automation can be graded
+deterministically instead of waiting on real time to pass. Accepts either an
+absolute time or a relative advance. Runs the no-show sweep and the
+once-per-day morning-reminder sweep synchronously before responding, so
+results are visible immediately (in the response, and in subsequent
+`GET /outbox` / `GET /reminders/today` calls).
+
+**Body** — one of:
+```json
+{ "now": "2026-09-21T09:00:00.000Z" }
+```
+```json
+{ "advanceMinutes": 30 }
+```
+
+**200**
+```json
+{ "now": "2026-09-21T09:00:00.000Z", "noShowCount": 1, "reminderCount": 2 }
+```
+`noShowCount` — appointments auto-marked `NO_SHOW` this tick. `reminderCount`
+— reminders auto-sent this tick (0 unless this tick crossed into a new
+calendar day that hadn't been swept yet).
+
+**400** — body matches neither shape
+
+---
+
+### `GET /outbox`
+
+T1. The Notification Service's outbox — every reminder "sent" (in-memory
+log; a real integration would call an email/SMS provider here instead).
+
+**200** — array of notifications:
+```json
+[
+  {
+    "id": "1",
+    "type": "APPOINTMENT_REMINDER",
+    "appointmentId": "uuid",
+    "patientId": "uuid",
+    "patientName": "Samantha Lee",
+    "doctorName": "Dr. Asha Rao",
+    "appointmentStartsAt": "2026-09-21T15:00:00.000Z",
+    "message": "Reminder: you have an appointment with Dr. Asha Rao today at 3:00 PM.",
+    "sentAt": "2026-09-21T09:00:00.000Z"
+  }
+]
+```
+`message` is written **to the patient** (second person) — it's the text a
+real SMS/email would contain, not a note to the desk. Formatted in UTC
+regardless of server machine timezone, matching how appointment times are
+stored throughout this system.
+
+---
+
+### `GET /reminders/today`
+
+Today's (per the server's current clock) `BOOKED` appointments, each
+annotated with whether a reminder has already gone out — backs the front
+desk's reviewable "who needs reminding" list.
+
+**200** — array of `Appointment` plus `reminderSent: boolean`.
+
+---
+
+### `POST /reminders/:appointmentId/send`
+
+Manually sends one reminder, independent of the once-a-day automatic sweep.
+
+**201** — the created notification (same shape as an `/outbox` entry).
+
+**404** — appointment not found
+
+**409** — appointment isn't currently `BOOKED`
