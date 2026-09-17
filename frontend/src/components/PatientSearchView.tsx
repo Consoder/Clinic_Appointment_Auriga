@@ -27,7 +27,7 @@ export function PatientSearchView() {
     }
   }
 
-  function handleCancelled(updated: Appointment) {
+  function handleUpdated(updated: Appointment) {
     setResults((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
   }
 
@@ -51,7 +51,7 @@ export function PatientSearchView() {
 
       <ul className="appointment-list">
         {results.map((a) => (
-          <AppointmentRow key={a.id} appointment={a} showDoctor onCancelled={handleCancelled} />
+          <AppointmentRow key={a.id} appointment={a} showDoctor onUpdated={handleUpdated} />
         ))}
       </ul>
     </div>

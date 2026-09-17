@@ -339,8 +339,8 @@ body {
 
 .appointment-row {
   display: flex;
-  align-items: center;
-  gap: 0.9rem;
+  flex-direction: column;
+  gap: 0.6rem;
   padding: 0.75rem 0.95rem;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -358,9 +358,24 @@ body {
 }
 
 .appointment-row--cancelled_free,
-.appointment-row--cancelled_late {
+.appointment-row--cancelled_late,
+.appointment-row--no_show {
   opacity: 0.6;
   border-left: 3px solid var(--line);
+}
+
+.appointment-row--completed {
+  border-left: 3px solid var(--success);
+}
+
+.appointment-row--no_show {
+  border-left: 3px solid var(--danger);
+}
+
+.appointment-row__main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
 }
 
 .appointment-row__time {
@@ -384,20 +399,68 @@ body {
   font-weight: 500;
 }
 
+.appointment-row__status--completed {
+  color: var(--success);
+}
+
+.appointment-row__status--no_show {
+  color: var(--danger);
+}
+
+.appointment-row__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
 .appointment-row button {
-  padding: 0.45rem 0.9rem;
+  padding: 0.45rem 0.8rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  color: var(--danger);
   transition: background 0.15s ease;
+  white-space: nowrap;
 }
 
-.appointment-row button:hover:not(:disabled) {
+.appointment-row button.ghost {
+  color: var(--accent-1);
+}
+
+.appointment-row button.ghost:hover:not(:disabled) {
+  background: rgba(109, 91, 247, 0.08);
+}
+
+.appointment-row button.danger {
+  color: var(--danger);
+}
+
+.appointment-row button.danger:hover:not(:disabled) {
   background: #fdf0f0;
+}
+
+.appointment-row__reschedule {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--line);
+  overflow: hidden;
+}
+
+.appointment-row__reschedule input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 0.8rem;
+}
+
+.appointment-row__reschedule button {
+  background: linear-gradient(120deg, var(--accent-1), #4f46e5);
+  color: white;
+  border: none;
 }
 
 /* ---------- Patient picker ---------- */
@@ -480,4 +543,196 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* ---------- Clock panel ---------- */
+
+.clock-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.clock-actions button {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  transition: border-color 0.15s ease;
+}
+
+.clock-actions button:hover:not(:disabled) {
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+}
+
+.clock-custom {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.clock-custom input {
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 0.85rem;
+}
+
+.clock-custom button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(120deg, var(--accent-1), #4f46e5);
+  color: white;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clock-sweep {
+  font-size: 0.82rem;
+  color: var(--accent-1);
+  background: rgba(109, 91, 247, 0.08);
+  padding: 0.55rem 0.75rem;
+  border-radius: 9px;
+}
+
+.reminders-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.reminders-box h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+
+.reminders-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.reminders-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: white;
+}
+
+.reminders-list__info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.reminders-list__time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 60px;
+}
+
+.reminders-list__item button {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 7px;
+  background: linear-gradient(120deg, var(--accent-1), #4f46e5);
+  color: white;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reminders-list__sent {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+.outbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.outbox h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+
+.outbox__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.outbox__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.outbox__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  background: #f8f8fd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.outbox__recipient {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-1);
+}
+
+.outbox__message {
+  font-style: italic;
+  color: var(--ink);
+}
+
+.outbox__meta {
+  font-size: 0.72rem;
+  color: var(--muted);
 }

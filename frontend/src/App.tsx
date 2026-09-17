@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarDays, CalendarPlus, Search } from "lucide-react";
+import { CalendarDays, CalendarPlus, Clock3, Search } from "lucide-react";
 import { useState } from "react";
 import { AuroraBackground } from "./components/AuroraBackground";
 import { BookingForm } from "./components/BookingForm";
+import { ClockPanel } from "./components/ClockPanel";
 import { DoctorDayView } from "./components/DoctorDayView";
 import { GradientText } from "./components/GradientText";
 import { PatientSearchView } from "./components/PatientSearchView";
@@ -11,6 +12,7 @@ const TABS = [
   { id: "book", label: "Book", icon: CalendarPlus, render: () => <BookingForm /> },
   { id: "day", label: "Doctor's Day", icon: CalendarDays, render: () => <DoctorDayView /> },
   { id: "find", label: "Find Patient", icon: Search, render: () => <PatientSearchView /> },
+  { id: "clock", label: "Clock", icon: Clock3, render: () => <ClockPanel /> },
 ] as const;
 
 function App() {

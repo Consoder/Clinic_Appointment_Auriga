@@ -3,15 +3,15 @@ import { api } from "../api";
 import type { Appointment, Doctor } from "../types";
 import { AppointmentRow } from "./AppointmentRow";
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // BR3: front desk views one doctor's full day, sorted by time.
 export function DoctorDayView() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [doctorId, setDoctorId] = useState("");
-  const [date, setDate] = useState(todayIso());
+  // Starts empty, not the browser's real today -- if the server's virtual
+  // clock (see the Clock tab) has been moved elsewhere, defaulting to the
+  // browser's actual date would silently show the wrong day. Set once the
+  // server tells us what day it currently is.
+  const [date, setDate] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +21,7 @@ export function DoctorDayView() {
       setDoctors(list);
       if (list.length > 0) setDoctorId((current) => current || list[0].id);
     });
+    api.getClock().then((c) => setDate((current) => current || c.now.slice(0, 10)));
   }, []);
 
   useEffect(() => {
@@ -34,8 +35,15 @@ export function DoctorDayView() {
       .finally(() => setLoading(false));
   }, [doctorId, date]);
 
-  function handleCancelled(updated: Appointment) {
-    setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  function handleUpdated(updated: Appointment) {
+    // A reschedule can move an appointment off this day entirely -- drop it
+    // from view rather than show it under the wrong date.
+    const stillToday = updated.startsAt.slice(0, 10) === date;
+    setAppointments((prev) =>
+      stillToday
+        ? prev.map((a) => (a.id === updated.id ? updated : a))
+        : prev.filter((a) => a.id !== updated.id)
+    );
   }
 
   return (
@@ -64,7 +72,7 @@ export function DoctorDayView() {
 
       <ul className="appointment-list">
         {appointments.map((a) => (
-          <AppointmentRow key={a.id} appointment={a} onCancelled={handleCancelled} />
+          <AppointmentRow key={a.id} appointment={a} onUpdated={handleUpdated} />
         ))}
       </ul>
     </div>

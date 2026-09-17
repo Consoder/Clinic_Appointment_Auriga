@@ -1,4 +1,12 @@
-import type { Appointment, ApiError, Doctor, Patient } from "./types";
+import type {
+  Appointment,
+  ApiError,
+  ClockState,
+  Doctor,
+  OutboxNotification,
+  Patient,
+  TodaysAppointment,
+} from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -40,4 +48,28 @@ export const api = {
 
   cancelAppointment: (id: string) =>
     request<Appointment>(`/appointments/${id}/cancel`, { method: "POST" }),
+
+  rescheduleAppointment: (id: string, data: { startsAt: string; endsAt: string }) =>
+    request<Appointment>(`/appointments/${id}/reschedule`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  completeAppointment: (id: string) =>
+    request<Appointment>(`/appointments/${id}/complete`, { method: "POST" }),
+
+  getClock: () => request<ClockState>("/clock"),
+
+  setClock: (now: string) =>
+    request<ClockState>("/clock", { method: "POST", body: JSON.stringify({ now }) }),
+
+  advanceClock: (advanceMinutes: number) =>
+    request<ClockState>("/clock", { method: "POST", body: JSON.stringify({ advanceMinutes }) }),
+
+  getOutbox: () => request<OutboxNotification[]>("/outbox"),
+
+  getTodaysReminders: () => request<TodaysAppointment[]>("/reminders/today"),
+
+  sendReminder: (appointmentId: string) =>
+    request<OutboxNotification>(`/reminders/${appointmentId}/send`, { method: "POST" }),
 };
