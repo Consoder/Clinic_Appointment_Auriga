@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: clinic
       POSTGRES_DB: clinic
     ports:
-      - "5432:5432"
+      # Host port 5433, not 5432 -- a native Postgres service already owns
+      # 5432 on this machine, so 5432 would silently route to the wrong DB.
+      - "5433:5432"
     volumes:
       - clinic_db_data:/var/lib/postgresql/data
     healthcheck:
