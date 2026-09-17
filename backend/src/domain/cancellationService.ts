@@ -1,16 +1,17 @@
 import type { PrismaClient } from "@prisma/client";
+import { clock } from "./clock.js";
 import { decideCancellationFee } from "./fee.js";
 import { AlreadyCancelledError, NotFoundError } from "./errors.js";
 
 export interface CancelAppointmentInput {
   appointmentId: string;
-  /** Injectable so the 24h boundary is deterministically testable. */
+  /** Defaults to the server's virtual clock; overridable for tests. */
   now?: Date;
 }
 
 export async function cancelAppointment(
   prisma: PrismaClient,
-  { appointmentId, now = new Date() }: CancelAppointmentInput
+  { appointmentId, now = clock.now() }: CancelAppointmentInput
 ) {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
