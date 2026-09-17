@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Doctor {
+  id           String        @id @default(uuid())
+  name         String
+  specialty    String?
+  appointments Appointment[]
+
+  @@map("doctors")
+}
+
+model Patient {
+  id           String        @id @default(uuid())
+  name         String
+  phone        String?
+  appointments Appointment[]
+
+  @@map("patients")
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CANCELLED_FREE
+  CANCELLED_LATE
+}
+
+model Appointment {
+  id        String            @id @default(uuid())
+  doctorId  String            @map("doctor_id")
+  doctor    Doctor            @relation(fields: [doctorId], references: [id])
+  patientId String            @map("patient_id")
+  patient   Patient           @relation(fields: [patientId], references: [id])
+  startsAt  DateTime          @map("starts_at")
+  endsAt    DateTime          @map("ends_at")
+  status    AppointmentStatus @default(BOOKED)
+  cancelledAt DateTime?       @map("cancelled_at")
+  feeCharged  Boolean         @default(false) @map("fee_charged")
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@index([doctorId, startsAt])
+  @@index([patientId])
+  @@map("appointments")
+}
